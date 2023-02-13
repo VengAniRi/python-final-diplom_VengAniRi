@@ -1,9 +1,11 @@
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.http import JsonResponse
 
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
 
 from auth_api.models import Contact, ConfirmEmailToken
 from .serializers import UserSerializer
@@ -68,3 +70,62 @@ class ConfirmAccount(APIView):
                 return Response({'Status': False, 'Errors': 'Неправильно указан токен или email'})
         return Response({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'},
                         status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoginAccount(APIView):
+    """
+    Класс для авторизации пользователей
+    """
+    throttle_scope = 'anon'
+
+    def post(self, request, *args, **kwargs):
+        if {'email', 'password'}.issubset(request.data):
+            user = authenticate(request, username=request.data['email'], password=request.data['password'])
+
+            if user is not None:
+                if user.is_active:
+                    token, _ = Token.objects.get_or_create(user=user)
+
+                    return Response({'Status': True, 'Token': token.key})
+
+            return Response({'Status': False, 'Errors': 'Не удалось авторизовать'}, status=status.HTTP_403_FORBIDDEN)
+
+        return Response({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+class AccountDetails(APIView):
+    """
+    Класс для работы данными пользователя
+    """
+    throttle_scope = 'user'
+
+    # Возвращает все данные пользователя включая все контакты.
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'Status': False, 'Error': 'Login required'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    # Изменяем данные пользователя.
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'Status': False, 'Error': 'Login required'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Если есть пароль, проверяем его и сохраняем.
+        if 'password' in request.data:
+            try:
+                validate_password(request.data['password'])
+            except Exception as password_error:
+                return Response({'Status': False, 'Errors': {'password': password_error}})
+            else:
+                request.user.set_password(request.data['password'])
+
+        # Проверяем остальные данные
+        user_serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if user_serializer.is_valid():
+            user_serializer.save()
+            return Response({'Status': True}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'Status': False, 'Errors': user_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
