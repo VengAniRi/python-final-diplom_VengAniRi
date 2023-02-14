@@ -2,13 +2,19 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.http import JsonResponse
 
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
+from .models import Category, Shop
 from auth_api.models import Contact, ConfirmEmailToken
-from .serializers import UserSerializer
+from .serializers import (
+    CategorySerializer,
+    ShopSerializer,
+    UserSerializer
+
+)
 
 
 class RegisterAccount(APIView):
@@ -129,3 +135,22 @@ class AccountDetails(APIView):
             return Response({'Status': True}, status=status.HTTP_201_CREATED)
         else:
             return Response({'Status': False, 'Errors': user_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CategoryView(viewsets.ModelViewSet):
+    """
+    Класс для просмотра категорий
+    """
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    ordering = ('name',)
+
+
+class ShopView(viewsets.ModelViewSet):
+    """
+    Класс для просмотра списка магазинов
+    """
+
+    queryset = Shop.objects.all()
+    serializer_class = ShopSerializer
+    ordering = ('name',)
