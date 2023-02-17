@@ -10,9 +10,15 @@ from rest_framework import status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from ujson import loads as load_json
 
-from .models import Category, Shop, ProductInfo, Order, OrderItem
+from yaml import load as load_yaml, Loader
+from ujson import loads as load_json
+from distutils.util import strtobool
+from requests import get
+
+from shop.tasks import import_shop_data
+from .signals import new_user_registered
+from .models import Category, Shop, ProductInfo, Order, OrderItem, Product, ProductParameter, Parameter
 from auth_api.models import Contact, ConfirmEmailToken
 from .serializers import (
     CategorySerializer,
@@ -427,3 +433,64 @@ class PartnerOrders(APIView):
 
         serializer = OrderSerializer(order, many=True)
         return Response(serializer.data)
+
+
+class PartnerState(APIView):
+    """
+    Класс для работы со статусом поставщика
+    """
+    throttle_scope = 'user'
+
+    # Получить текущий статус получения заказов у магазина
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'Status': False, 'Error': 'Login required'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.user.type != 'shop':
+            return Response({'Status': False, 'Error': 'Только для магазинов'}, status=status.HTTP_403_FORBIDDEN)
+
+        shop = request.user.shop
+        serializer = ShopSerializer(shop)
+        return Response(serializer.data)
+
+    # Изменить текущий статус получения заказов у магазина
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'Status': False, 'Error': 'Log in required'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.user.type != 'shop':
+            return Response({'Status': False, 'Error': 'Только для магазинов'}, status=status.HTTP_403_FORBIDDEN)
+
+        state = request.data.get('state')
+        if state:
+            try:
+                Shop.objects.filter(user_id=request.user.id).update(state=strtobool(state))
+                return Response({'Status': True})
+            except ValueError as error:
+                return Response({'Status': False, 'Errors': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'Status': False, 'Errors': 'Не указан аргумент state.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PartnerUpdate(APIView):
+    """
+    Класс для обновления прайса от поставщика
+    """
+    throttle_scope = 'partner'
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'Status': False, 'Error': 'Log in required'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.user.type != 'shop':
+            return Response({'Status': False, 'Error': 'Только для магазинов'}, status=status.HTTP_403_FORBIDDEN)
+
+        file = request.FILES
+        if file:
+            user_id = request.user.id
+            import_shop_data(file, user_id)
+
+            return Response({'Status': True})
+
+        return Response({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'},
+                        status=status.HTTP_400_BAD_REQUEST)
