@@ -85,7 +85,7 @@ python manage.py createsuperuser
 ```bash
 python manage.py runserver
 ```
-* Приложение будет доступно по адресу: http://127.0.0.1:8000/`
+* Приложение будет доступно по адресу: http://127.0.0.1:8000/
 * API также опубликовано на сервере POSTMAN:
 
 https://www.postman.com/dark-robot-240017/workspace/my-workspace/documentation/25810006-7ef8e249-2aee-4978-a79b-5e642146e041
