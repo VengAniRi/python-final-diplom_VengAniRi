@@ -424,9 +424,8 @@ class PartnerOrders(APIView):
         if request.user.type != 'shop':
             return Response({'Status': False, 'Error': 'Только для магазинов'}, status=status.HTTP_403_FORBIDDEN)
 
-        pr = Prefetch('ordered_items', queryset=OrderItem.objects.filter(shop__user_id=request.user.id))
-        order = Order.objects.filter(
-            ordered_items__shop__user_id=request.user.id).exclude(status='basket') \
+        pr = Prefetch('ordered_items', queryset=OrderItem.objects.filter(product_info__shop__user_id=request.user.id))
+        order = Order.objects.filter(user_id=request.user.id).exclude(status='basket') \
             .prefetch_related(pr).select_related('contact').annotate(
             total_sum=Sum('ordered_items__total_amount'),
             total_quantity=Sum('ordered_items__quantity'))
