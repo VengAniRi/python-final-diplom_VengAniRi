@@ -1,0 +1,10 @@
+# comment
+*/temp*
+*/*/temp*
+temp?
+
+
+env
+.dockerignore
+Dockerfile
+Dockerfile.prod
